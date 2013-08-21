@@ -20,33 +20,52 @@ public:
     };
 
     State state() const;
-    State transition(State state);
+    void transition(State state, CXTranslationUnit unit) { transition(state, &unit); }
+    void transition(State state) { transition(state, static_cast<CXTranslationUnit*>(0)); }
     TranslationUnitCache *cache() const;
     CXIndex index() const;
     CXTranslationUnit translationUnit() const;
+    SourceInformation sourceInformation() const { return mSourceInformation; }
 private:
-    TranslationUnit(CXTranslationUnit unit, TranslationUnitCache *cache);
-    friend class TranslationUnitCache;
+    TranslationUnit(const SourceInformation &sourceInfo, TranslationUnitCache *cache, CXTranslationUnit unit = 0);
 
-    std::mutex mMutex;
+    void transition(State state, CXTranslationUnit *unit);
+
+    std::condition_variable mCondition;
+    mutable std::mutex mMutex;
     State mState;
     TranslationUnitCache *mCache;
     CXTranslationUnit mTranslationUnit;
+    const SourceInformation mSourceInformation;
+
+    friend class TranslationUnitCache;
 };
+
 class TranslationUnitCache
 {
 public:
     TranslationUnitCache(int size);
     ~TranslationUnitCache();
 
-    std::shared_ptr<TranslationUnit> find(uint32_t fileId) const;
-    std::shared_ptr<TranslationUnit> find(const SourceInformation &info) const;
+    std::shared_ptr<TranslationUnit> find(uint32_t fileId);
+    std::shared_ptr<TranslationUnit> get(const SourceInformation &info);
+    void insert(const std::shared_ptr<TranslationUnit> &unit);
+
+    int maxSize() const { return mMaxSize; }
+    int size() const;
 private:
+    void purge();
     struct CachedUnit {
         List<String> args;
         Path compiler;
-        std::shared_ptr<TranslationUnit> unit;
+        std::shared_ptr<TranslationUnit> translationUnit;
+        uint32_t fileId;
+        CachedUnit *prev, *next;
     };
+
+    std::mutex mMutex;
+    CachedUnit *mFirst, *mLast;
+    const int mMaxSize;
     Map<uint32_t, CachedUnit*> mUnits;
 };
 
