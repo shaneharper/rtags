@@ -88,6 +88,7 @@ set(RDM_SOURCES
   ScanJob.cpp
   Server.cpp
   StatusJob.cpp
+  TranslationUnitCache.cpp
   ValidateDBJob.cpp
   )
 
