@@ -63,7 +63,7 @@ private:
         CachedUnit *prev, *next;
     };
 
-    std::mutex mMutex;
+    mutable std::mutex mMutex;
     CachedUnit *mFirst, *mLast;
     const int mMaxSize;
     Map<uint32_t, CachedUnit*> mUnits;

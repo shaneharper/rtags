@@ -70,8 +70,7 @@ std::shared_ptr<TranslationUnit> TranslationUnitCache::find(uint32_t fileId)
 std::shared_ptr<TranslationUnit> TranslationUnitCache::get(const SourceInformation &info)
 {
     std::lock_guard<std::mutex> lock(mMutex);
-    uint32_t fileId = Location::insertFile(info.sourceFile);
-    CachedUnit *unit = mUnits.value(fileId);
+    CachedUnit *unit = mUnits.value(info.fileId);
     if (unit) {
         const SourceInformation s = unit->translationUnit->sourceInformation();
         if (s.compiler == info.compiler && s.args == info.args)
