@@ -26,6 +26,7 @@ public:
     CXIndex index() const;
     CXTranslationUnit translationUnit() const;
     SourceInformation sourceInformation() const { return mSourceInformation; }
+    uint32_t fileId() const { return mSourceInformation.fileId; }
 private:
     TranslationUnit(const SourceInformation &sourceInfo, TranslationUnitCache *cache, CXTranslationUnit unit = 0);
 
@@ -54,12 +55,11 @@ public:
     int maxSize() const { return mMaxSize; }
     int size() const;
 private:
+    struct CachedUnit;
+    void moveToEnd(CachedUnit *unit);
     void purge();
     struct CachedUnit {
-        List<String> args;
-        Path compiler;
         std::shared_ptr<TranslationUnit> translationUnit;
-        uint32_t fileId;
         CachedUnit *prev, *next;
     };
 

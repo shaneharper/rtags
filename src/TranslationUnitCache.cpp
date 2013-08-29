@@ -62,8 +62,10 @@ TranslationUnitCache::~TranslationUnitCache()
 std::shared_ptr<TranslationUnit> TranslationUnitCache::find(uint32_t fileId)
 {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (CachedUnit *unit = mUnits.value(fileId))
+    if (CachedUnit *unit = mUnits.value(fileId)) {
+        moveToEnd(unit);
         return unit->translationUnit;
+    }
     return std::shared_ptr<TranslationUnit>();
 }
 
@@ -73,20 +75,37 @@ std::shared_ptr<TranslationUnit> TranslationUnitCache::get(const SourceInformati
     CachedUnit *unit = mUnits.value(info.fileId);
     if (unit) {
         const SourceInformation s = unit->translationUnit->sourceInformation();
-        if (s.compiler == info.compiler && s.args == info.args)
+        if (s.compiler == info.compiler && s.args == info.args) {
+            moveToEnd(unit);
             return unit->translationUnit;
+        }
     }
     return std::shared_ptr<TranslationUnit>();
 }
 
-void TranslationUnitCache::insert(const std::shared_ptr<TranslationUnit> &unit)
-{
-
-}
-
-void TranslationUnitCache::purge()
+void TranslationUnitCache::insert(const std::shared_ptr<TranslationUnit> &translationUnit)
 {
     std::lock_guard<std::mutex> lock(mMutex);
+    const uint32_t fileId = translationUnit->fileId();
+    CachedUnit *&unit = mUnits[fileId];
+    if (unit) {
+        moveToEnd(unit);
+    } else {
+        unit = new CachedUnit;
+        unit->next = 0;
+        unit->prev = mLast;
+        if (!mLast) {
+            mFirst = mLast = unit;
+        } else {
+            mLast->next = unit;
+            mLast = unit;
+        }
+        purge();
+    }
+}
+
+void TranslationUnitCache::purge() // lock always held
+{
     while (mUnits.size() > mMaxSize) {
         CachedUnit *tmp = mFirst;
         mFirst = tmp->next;
@@ -104,4 +123,20 @@ int TranslationUnitCache::size() const
 {
     std::lock_guard<std::mutex> lock(mMutex);
     return mUnits.size();
+}
+
+void TranslationUnitCache::moveToEnd(CachedUnit *unit) // lock always held
+{
+    if (unit != mLast) {
+        if (unit == mFirst) {
+            mFirst = unit->next;
+            mFirst->prev = 0;
+        } else {
+            unit->prev->next = unit->next;
+            unit->next->prev = unit->prev;
+        }
+        unit->next = 0;
+        mLast->next = unit;
+        mLast = unit;
+    }
 }
