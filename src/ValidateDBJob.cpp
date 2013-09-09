@@ -26,24 +26,25 @@ void ValidateDBJob::execute()
                 return;
             }
             const CursorInfo &ci = it->second;
-            if (!ci.symbolLength) {
+            if (!ci.symbolLength()) {
                 const Location &loc = it->first;
                 if (!mPrevious.contains(loc)) {
                     Log stream(Error);
                     stream << "Invalid entry for " << loc
-                           << " symbolName: " << ci.symbolName;
-                    if (ci.kind)
+                           << " symbolName: " << ci.symbolName();
+                    if (ci.kind())
                         stream << " kind: " << ci.kindSpelling();// this somehow seems to hang when kind == 0
                     stream << " isDefinition: " << (ci.isDefinition() ? "true" : "false")
-                           << " target: " << ci.targets
+                           << " target: " << ci.targets()
                            << " references:";
-                    for (Set<Location>::const_iterator rit = ci.references.begin(); rit != ci.references.end(); ++rit) {
+                    const Set<Location> &references = ci.references();
+                    for (Set<Location>::const_iterator rit = references.begin(); rit != references.end(); ++rit) {
                         stream << " " << *rit;
                     }
                 }
                 newErrors.insert(loc);
                 ++errors;
-            } else if (it->second.kind != CXCursor_InclusionDirective) {
+            } else if (it->second.kind() != CXCursor_InclusionDirective) {
                 if (lastFileId != it->first.fileId()) {
                     delete []lastFileContents;
                     lastFileId = it->first.fileId();
@@ -52,27 +53,27 @@ void ValidateDBJob::execute()
                 int foundError = 0;
                 int offset = it->first.offset();
                 if (RTags::isOperator(lastFileContents[offset])) {
-                    for (int i=1; i<it->second.symbolLength; ++i) {
+                    for (int i=1; i<it->second.symbolLength(); ++i) {
                         if (!RTags::isOperator(lastFileContents[i + offset])) {
-                            error() << "Found something wrong" << it->second.kind << lastFileContents[i + offset];
+                            error() << "Found something wrong" << it->second.kind() << lastFileContents[i + offset];
                             foundError = 1;
                             break;
                         }
                     }
                 } else {
                     if (!strncmp(lastFileContents + offset, "operator", 8)) {
-                        for (int i=8; i<it->second.symbolLength; ++i) {
+                        for (int i=8; i<it->second.symbolLength(); ++i) {
                             if (!RTags::isOperator(lastFileContents[i + offset])) {
-                                error() << "Found something wrong" << it->second.kind << lastFileContents[i + offset]
+                                error() << "Found something wrong" << it->second.kind() << lastFileContents[i + offset]
                                         << i << 2;
                                 foundError = 2;
                                 break;
                             }
                         }
                     } else {
-                        for (int i=0; i<it->second.symbolLength; ++i) {
+                        for (int i=0; i<it->second.symbolLength(); ++i) {
                             if (!RTags::isSymbol(lastFileContents[i + offset])) {
-                                error() << "Found something wrong" << it->second.kind << lastFileContents[i + offset] << i
+                                error() << "Found something wrong" << it->second.kind() << lastFileContents[i + offset] << i
                                         << 3;
                                 foundError = 3;
                                 break;
@@ -83,7 +84,7 @@ void ValidateDBJob::execute()
                 if (!foundError) {
                     if (offset > 0 && RTags::isSymbol(lastFileContents[offset - 1])) {
                         foundError = 2;
-                    } else if (RTags::isSymbol(lastFileContents[offset + it->second.symbolLength])) {
+                    } else if (RTags::isSymbol(lastFileContents[offset + it->second.symbolLength()])) {
                         foundError = 3;
                         // } else if (!ci.isValid(it->first)) {
                         //     foundError = 4; // This doesn't entirely work right now I think
@@ -93,7 +94,7 @@ void ValidateDBJob::execute()
                     error() << "Something is suspicious about" << foundError << it->first << it->second;
                     error() << String::format<64>("[%s]",
                                                   String(lastFileContents + offset - 1,
-                                                         it->second.symbolLength + 2).constData());
+                                                         it->second.symbolLength() + 2).constData());
                 }
 
             }

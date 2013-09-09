@@ -35,9 +35,9 @@ void FollowLocationJob::execute()
     }
     if (!loc.isNull()) {
         // ### not respecting DeclarationOnly
-        if (cursorInfo.kind != target.kind) {
-            if (!target.isDefinition() && !target.targets.isEmpty()) {
-                switch (target.kind) {
+        if (cursorInfo.kind() != target.kind()) {
+            if (!target.isDefinition() && !target.targets().isEmpty()) {
+                switch (target.kind()) {
                 case CXCursor_ClassDecl:
                 case CXCursor_ClassTemplate:
                 case CXCursor_StructDecl:
@@ -59,7 +59,7 @@ void FollowLocationJob::execute()
         if (!loc.isNull()) {
             if (queryFlags() & QueryMessage::DeclarationOnly && target.isDefinition()) {
                 Location declLoc;
-                const CursorInfo decl = target.bestTarget(map, errors, &declLoc);
+                target.bestTarget(map, errors, &declLoc);
                 if (!declLoc.isNull()) {
                     write(declLoc);
                 }

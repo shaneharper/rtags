@@ -94,7 +94,7 @@ static inline SymbolMap::const_iterator findCursorInfo(const SymbolMap &map, con
             --it;
             if (it->first.fileId() == location.fileId()) {
                 const int off = location.offset() - it->first.offset();
-                if (it->second.symbolLength > off && (context.isEmpty() || it->second.symbolName.contains(context))) {
+                if (it->second.symbolLength() > off && (context.isEmpty() || it->second.symbolName().contains(context))) {
                     return it;
                 }
             }
@@ -114,7 +114,7 @@ static inline SymbolMap::const_iterator findCursorInfo(const SymbolMap &map, con
                 if (b == map.begin())
                     break;
                 f = map.end();
-            } else if (f->second.symbolName.contains(context)) {
+            } else if (f->second.symbolName().contains(context)) {
                 // error() << "found it forward" << j;
                 return f;
             } else {
@@ -128,7 +128,7 @@ static inline SymbolMap::const_iterator findCursorInfo(const SymbolMap &map, con
                 if (f == map.end())
                     break;
                 b = map.begin();
-            } else if (b->second.symbolName.contains(context)) {
+            } else if (b->second.symbolName().contains(context)) {
                 // error() << "found it backward" << j;
                 return b;
             }

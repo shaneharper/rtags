@@ -153,8 +153,8 @@ bool Job::write(const Location &location, unsigned flags)
                     --it;
                     if (it->first.fileId() != fileId)
                         break;
-                    if (it->second.isDefinition() && RTags::isContainer(it->second.kind) && offset >= it->second.start && offset <= it->second.end) {
-                        out += "\tfunction: " + it->second.symbolName;
+                    if (it->second.isDefinition() && RTags::isContainer(it->second.kind()) && offset >= it->second.start() && offset <= it->second.end()) {
+                        out += "\tfunction: " + it->second.symbolName();
                         break;
                     } else if (it == symbols.begin()) {
                         break;

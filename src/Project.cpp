@@ -658,10 +658,14 @@ static inline void joinCursors(SymbolMap &symbols, const Set<Location> &location
         SymbolMap::iterator c = symbols.find(*it);
         if (c != symbols.end()) {
             CursorInfo &cursorInfo = c->second;
+            Set<Location> targets = cursorInfo.targets();
+            bool modified = false;
             for (Set<Location>::const_iterator innerIt = locations.begin(); innerIt != locations.end(); ++innerIt) {
-                if (innerIt != it)
-                    cursorInfo.targets.insert(*innerIt);
+                if (innerIt != it && targets.insert(*innerIt))
+                    modified = true;
             }
+            if (modified)
+                cursorInfo.setTargets(targets);
             // ### this is filthy, we could likely think of something better
         }
     }
@@ -727,8 +731,7 @@ static inline void writeReferences(const ReferenceMap &references, SymbolMap &sy
     for (ReferenceMap::const_iterator it = references.begin(); it != end; ++it) {
         const Set<Location> &refs = it->second;
         for (Set<Location>::const_iterator rit = refs.begin(); rit != refs.end(); ++rit) {
-            CursorInfo &ci = symbols[*rit];
-            ci.references.insert(it->first);
+            symbols[*rit].addReference(it->first);
         }
     }
 }
@@ -975,12 +978,12 @@ Set<Location> Project::locations(const String &symbolName, uint32_t fileId) cons
     if (fileId) {
         const SymbolMap s = symbols(fileId);
         for (SymbolMap::const_iterator it = s.begin(); it != s.end(); ++it) {
-            if (!RTags::isReference(it->second.kind) && (symbolName.isEmpty() || matchSymbolName(symbolName, it->second.symbolName)))
+            if (!RTags::isReference(it->second.kind()) && (symbolName.isEmpty() || matchSymbolName(symbolName, it->second.symbolName())))
                 ret.insert(it->first);
         }
     } else if (symbolName.isEmpty()) {
         for (SymbolMap::const_iterator it = mSymbols.begin(); it != mSymbols.end(); ++it) {
-            if (!RTags::isReference(it->second.kind))
+            if (!RTags::isReference(it->second.kind()))
                 ret.insert(it->first);
         }
     } else {
@@ -1008,7 +1011,7 @@ List<RTags::SortedCursor> Project::sort(const Set<Location> &locations, unsigned
                 if (!decl.isNull())
                     continue;
             }
-            node.kind = found->second.kind;
+            node.kind = found->second.kind();
         }
         sorted.push_back(node);
     }

@@ -38,7 +38,7 @@ void CursorInfoJob::execute()
             --it;
             if (it->first.fileId() != fileId)
                 break;
-            if (it->second.isDefinition() && RTags::isContainer(it->second.kind) && offset >= it->second.start && offset <= it->second.end) {
+            if (it->second.isDefinition() && RTags::isContainer(it->second.kind()) && offset >= it->second.start() && offset <= it->second.end()) {
                 write("====================");
                 write(it->first);
                 write(it->second, ciFlags);

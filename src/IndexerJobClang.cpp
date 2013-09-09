@@ -369,7 +369,7 @@ static inline bool isImplicit(const CXCursor &cursor)
                                 clang_getCursorLocation(clang_getCursorSemanticParent(cursor)));
 }
 
-void IndexerJobClang::nestedClassConstructorCallUgleHack(const CXCursor &parent, CursorInfo &info,
+void IndexerJobClang::nestedClassConstructorCallUgleHack(const CXCursor &parent, CursorData *data,
                                                          CXCursorKind refKind, const Location &refLoc)
 {
     if (refKind == CXCursor_Constructor
@@ -387,7 +387,7 @@ void IndexerJobClang::nestedClassConstructorCallUgleHack(const CXCursor &parent,
         }
         if (start != -1) {
             // error() << "Changed symbolLength from" << info.symbolLength << "to" << (idx - start - 1) << "for dude reffing" << refLoc;
-            info.symbolLength = idx - start - 1;
+            data->symbolLength = idx - start - 1;
         }
         RTags::Filter in;
         in.kinds.insert(CXCursor_TypeRef);
@@ -395,7 +395,7 @@ void IndexerJobClang::nestedClassConstructorCallUgleHack(const CXCursor &parent,
         for (int i=0; i<typeRefs.size(); ++i) {
             const Location loc = createLocation(typeRefs.at(i));
             // error() << "Added" << refLoc << "to targets for" << typeRefs.at(i);
-            mData->symbols[loc].targets.insert(refLoc);
+            mData->symbols[loc].addTarget(refLoc);
         }
     }
 }
@@ -512,13 +512,13 @@ void IndexerJobClang::handleReference(const CXCursor &cursor, CXCursorKind kind,
         return;
 
     CursorInfo &refInfo = mData->symbols[reffedLoc];
-    if (!refInfo.symbolLength && !handleCursor(ref, refKind, reffedLoc))
+    if (!refInfo.symbolLength() && !handleCursor(ref, refKind, reffedLoc))
         return;
 
-    refInfo.references.insert(location);
+    refInfo.addReference(location);
 
     CursorInfo &info = mData->symbols[location];
-    info.targets.insert(reffedLoc);
+    info.addTarget(reffedLoc);
 
     // We need the new cursor to replace the symbolLength. This is important
     // in the following case:
@@ -535,21 +535,22 @@ void IndexerJobClang::handleReference(const CXCursor &cursor, CXCursorKind kind,
     // The !isCursor is var decls and field decls where we set up a target even
     // if they're not considered references
 
-    if (!RTags::isCursor(info.kind) && (!info.symbolLength || info.bestTarget(mData->symbols).kind == refKind)) {
+    if (!RTags::isCursor(info.kind()) && (!info.symbolLength() || info.bestTarget(mData->symbols).kind() == refKind)) {
         CXSourceRange range = clang_getCursorExtent(cursor);
         unsigned start, end;
         clang_getSpellingLocation(clang_getRangeStart(range), 0, 0, 0, &start);
         clang_getSpellingLocation(clang_getRangeEnd(range), 0, 0, 0, &end);
-        info.start = start;
-        info.end = end;
-        info.definition = false;
-        info.kind = kind;
-        info.symbolLength = isOperator ? end - start : refInfo.symbolLength;
-        info.symbolName = refInfo.symbolName;
-        info.type = clang_getCursorType(cursor).kind;
+        CursorData *data = info.detach();
+        data->start = start;
+        data->end = end;
+        data->definition = false;
+        data->kind = kind;
+        data->symbolLength = isOperator ? end - start : refInfo.symbolLength();
+        data->symbolName = refInfo.symbolName();
+        data->type = clang_getCursorType(cursor).kind;
         switch (kind) {
         case CXCursor_CallExpr:
-            nestedClassConstructorCallUgleHack(parent, info, refKind, reffedLoc);
+            nestedClassConstructorCallUgleHack(parent, data, refKind, reffedLoc);
             // see rtags/tests/nestedClassConstructorCallUgleHack/
             break;
         default:
@@ -574,12 +575,12 @@ void IndexerJobClang::addOverriddenCursors(const CXCursor& cursor, const Locatio
         CursorInfo &o = mData->symbols[loc];
 
         //error() << "adding overridden (1) " << location << " to " << o;
-        o.references.insert(location);
+        o.addReference(location);
         List<CursorInfo*>::const_iterator inf = infos.begin();
         const List<CursorInfo*>::const_iterator infend = infos.end();
         while (inf != infend) {
             //error() << "adding overridden (2) " << loc << " to " << *(*inf);
-            (*inf)->references.insert(loc);
+            (*inf)->addReference(loc);
             ++inf;
         }
 
@@ -606,11 +607,12 @@ void IndexerJobClang::handleInclude(const CXCursor &cursor, CXCursorKind kind, c
                 mData->symbolNames[(include + path.fileName())].insert(location);
             }
             CursorInfo &info = mData->symbols[location];
-            info.targets.insert(refLoc);
-            info.kind = cursor.kind;
-            info.definition = false;
-            info.symbolName = "#include " + RTags::eatString(clang_getCursorDisplayName(cursor));
-            info.symbolLength = info.symbolName.size() + 2;
+            CursorData *data = info.detach();
+            data->targets.insert(refLoc);
+            data->kind = cursor.kind;
+            data->definition = false;
+            data->symbolName = "#include " + RTags::eatString(clang_getCursorDisplayName(cursor));
+            data->symbolLength = data->symbolName.size() + 2;
             // this fails for things like:
             // # include    <foobar.h>
         }
@@ -743,12 +745,13 @@ String IndexerJobClang::typeName(const CXCursor &cursor)
 bool IndexerJobClang::handleCursor(const CXCursor &cursor, CXCursorKind kind, const Location &location)
 {
     CursorInfo &info = mData->symbols[location];
-    if (!info.symbolLength || !RTags::isCursor(info.kind)) {
+    CursorData *data = info.detach();
+    if (!data->symbolLength || !RTags::isCursor(data->kind)) {
         CXStringScope name = clang_getCursorSpelling(cursor);
         const char *cstr = name.data();
-        info.symbolLength = cstr ? strlen(cstr) : 0;
-        info.type = clang_getCursorType(cursor).kind;
-        if (!info.symbolLength) {
+        data->symbolLength = cstr ? strlen(cstr) : 0;
+        data->type = clang_getCursorType(cursor).kind;
+        if (!data->symbolLength) {
             // this is for these constructs:
             // typedef struct {
             //    int a;
@@ -758,42 +761,42 @@ bool IndexerJobClang::handleCursor(const CXCursor &cursor, CXCursorKind kind, co
 
             switch (kind) {
             case CXCursor_ClassDecl:
-                info.symbolLength = 5;
-                info.symbolName = "class";
+                data->symbolLength = 5;
+                data->symbolName = "class";
                 break;
             case CXCursor_UnionDecl:
-                info.symbolLength = 5;
-                info.symbolName = "union";
+                data->symbolLength = 5;
+                data->symbolName = "union";
                 break;
             case CXCursor_StructDecl:
-                info.symbolLength = 6;
-                info.symbolName = "struct";
+                data->symbolLength = 6;
+                data->symbolName = "struct";
                 break;
             default:
                 mData->symbols.remove(location);
                 return false;
             }
         } else {
-            info.symbolName = addNamePermutations(cursor, location);
+            data->symbolName = addNamePermutations(cursor, location);
         }
 
         CXSourceRange range = clang_getCursorExtent(cursor);
         unsigned start, end;
         clang_getSpellingLocation(clang_getRangeStart(range), 0, 0, 0, &start);
         clang_getSpellingLocation(clang_getRangeEnd(range), 0, 0, 0, &end);
-        info.start = start;
-        info.end = end;
+        data->start = start;
+        data->end = end;
 
         if (kind == CXCursor_EnumConstantDecl) {
 #if CINDEX_VERSION_MINOR > 1
-            info.enumValue = clang_getEnumConstantDeclValue(cursor);
+            data->enumValue = clang_getEnumConstantDeclValue(cursor);
 #else
-            info.definition = 1;
+            data->definition = 1;
 #endif
         } else {
-            info.definition = clang_isCursorDefinition(cursor);
+            data->definition = clang_isCursorDefinition(cursor);
         }
-        info.kind = kind;
+        data->kind = kind;
         // apparently some function decls will give a different usr for
         // their definition and their declaration.  Using the canonical
         // cursor's usr allows us to join them. Check JSClassRelease in
@@ -802,7 +805,7 @@ bool IndexerJobClang::handleCursor(const CXCursor &cursor, CXCursorKind kind, co
         if (!usr.isEmpty())
             mData->usrMap[usr].insert(location);
 
-        switch (info.kind) {
+        switch (data->kind) {
         case CXCursor_Constructor:
         case CXCursor_Destructor: {
             Location parentLocation = createLocation(clang_getCursorSemanticParent(cursor));
@@ -810,8 +813,8 @@ bool IndexerJobClang::handleCursor(const CXCursor &cursor, CXCursorKind kind, co
             // declaration and definition should know of one another
             if (parentLocation.isValid()) {
                 CursorInfo &parent = mData->symbols[parentLocation];
-                parent.references.insert(location);
-                info.references.insert(parentLocation);
+                parent.addReference(location);
+                data->references.insert(parentLocation);
             }
             break; }
         case CXCursor_CXXMethod: {

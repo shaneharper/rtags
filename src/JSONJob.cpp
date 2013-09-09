@@ -54,11 +54,11 @@ void JSONJob::execute()
                 }
                 if (!targetLocation.isNull()) {
                     write<256>("{\"location\":%s,\"type\":\"%s\",\"target\":%s}",
-                               toJSON(sit->first, it->first, sit->second.symbolLength, srcRootLength).constData(), type.constData(),
-                               toJSON(targetLocation, it->first, target.symbolLength, srcRootLength).constData());
+                               toJSON(sit->first, it->first, sit->second.symbolLength(), srcRootLength).constData(), type.constData(),
+                               toJSON(targetLocation, it->first, target.symbolLength(), srcRootLength).constData());
                 } else {
                     write<256>("{\"location\":%s,\"type\":\"%s\"}",
-                               toJSON(sit->first, it->first, sit->second.symbolLength, srcRootLength).constData(), type.constData());
+                               toJSON(sit->first, it->first, sit->second.symbolLength(), srcRootLength).constData(), type.constData());
                 }
 
                 ++sit;

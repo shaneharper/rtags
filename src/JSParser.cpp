@@ -224,11 +224,11 @@ struct File
             Location loc(fileId, it->first);
             CursorInfo &info = symbols[loc];
             const Location refLoc(it->second->fileId, 0);
-            info.targets.insert(refLoc);
-            info.kind = CursorInfo::JSInclude;
-            info.definition = false;
-            info.symbolName = "// include('" + refLoc.path() + "')";
-            info.symbolLength = info.symbolName.size() + 2;
+            info.addTarget(refLoc);
+            info.setKind(CursorInfo::JSInclude);
+            // info.setDefinition(false); // ### this is default
+            info.setSymbolName("// include('" + refLoc.path() + "')");
+            info.setSymbolLength(info.symbolName().size() + 2);
             // ### this may not be right. I could know how many spaces we
             // ### have in here
             it->second->recurse(src, dependencies, symbols);
@@ -365,26 +365,29 @@ bool JSParser::parse(const Path &path, SymbolMap *symbols, SymbolNameMap *symbol
                     //        static_cast<uint32_t>(get<v8::Number>(ref, 0)->Value()), Location::path(fid).constData(), off);
                     const Location loc(fid, off);
                     CursorInfo &c = (*symbols)[loc];
-                    c.start = loc.offset();
-                    c.end = static_cast<uint32_t>(get<v8::Number>(ref, 1)->Value());
-                    c.symbolLength = c.end - c.start;
-                    c.symbolName = keyString;
+                    // ### this is not the most efficient way to do this
+                    const uint32_t start = loc.offset();
+                    c.setStart(start);
+                    const uint32_t end = static_cast<uint32_t>(get<v8::Number>(ref, 1)->Value());
+                    c.setEnd(end);
+                    c.setSymbolLength(end - start);
+                    c.setSymbolName(keyString);
                     if (ref->Length() == 3) {
                         (*symbolNames)[keyString].insert(loc);
-                        c.kind = CursorInfo::JSDeclaration;
+                        c.setKind(CursorInfo::JSDeclaration);
                         decl = &c;
                         declLoc = loc;
                         for (Map<Location, CursorInfo*>::const_iterator it = pendingRefCursors.begin(); it != pendingRefCursors.end(); ++it) {
-                            it->second->targets.insert(declLoc);
-                            c.references.insert(it->first);
+                            it->second->addTarget(declLoc);
+                            c.addReference(it->first);
                         }
                         // error() << "Got a declaration" << loc << keyString << pendingRefCursors.size();
                         pendingRefCursors.clear();
                     } else {
-                        c.kind = CursorInfo::JSReference;
+                        c.setKind(CursorInfo::JSReference);
                         if (decl) {
-                            decl->references.insert(loc);
-                            c.targets.insert(declLoc);
+                            decl->addReference(loc);
+                            c.addTarget(declLoc);
                         } else {
                             pendingRefCursors[loc] = &c;
                         }
