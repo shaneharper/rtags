@@ -81,14 +81,15 @@ void IndexerJobClang::inclusionVisitor(CXFile includedFile,
 
     const uint32_t fileId = l.fileId();
     if (!includeLen) {
-        job->mData->dependencies[fileId].insert(fileId);
+        if (!path.isSystem())
+            job->mData->dependencies[fileId].insert(fileId);
     } else {
         for (unsigned i=0; i<includeLen; ++i) {
             CXFile originatingFile;
             clang_getSpellingLocation(includeStack[i], &originatingFile, 0, 0, 0);
             Location loc(originatingFile, 0);
             const uint32_t f = loc.fileId();
-            if (f)
+            if (f && !loc.path().isSystem())
                 job->mData->dependencies[fileId].insert(f);
         }
     }
@@ -574,7 +575,6 @@ void IndexerJobClang::handleInclude(const CXCursor &cursor, CXCursorKind kind, c
             {
                 String include = "#include ";
                 const Path path = refLoc.path();
-                mData->dependencies[Location::insertFile(path)].insert(sourceInformation().fileId);
                 mData->symbolNames[(include + path)].insert(location);
                 mData->symbolNames[(include + path.fileName())].insert(location);
             }
@@ -1079,18 +1079,17 @@ bool IndexerJobClang::visit()
     clang_visitChildren(clang_getTranslationUnitCursor(data()->unit),
                         IndexerJobClang::indexVisitor, this);
 
-    const uint32_t fileId = sourceInformation().fileId;
     const Set<uint32_t> &visited = visitedFiles();
     for (Set<uint32_t>::const_iterator it = visited.begin(); it != visited.end(); ++it) {
-        warning() << sourceInformation().sourceFile() << "parsed" << Location::path(*it);
-        data()->dependencies[*it].insert(fileId);
+        if (testLog(Warning))
+            warning() << sourceInformation().sourceFile() << "parsed" << Location::path(*it);
         addFileSymbol(*it);
     }
 
     const Set<uint32_t> &blocked = blockedFiles();
     for (Set<uint32_t>::const_iterator it = blocked.begin(); it != blocked.end(); ++it) {
-        warning() << sourceInformation().sourceFile() << "blocked" << Location::path(*it);
-        data()->dependencies[*it].insert(fileId);
+        if (testLog(Warning))
+            warning() << sourceInformation().sourceFile() << "blocked" << Location::path(*it);
         addFileSymbol(*it);
     }
     data()->visitTime = watch.elapsed();
@@ -1233,4 +1232,6 @@ void IndexerJobClang::addFileSymbol(uint32_t file)
     mData->symbolNames[path].insert(loc);
     const char *fn = path.fileName();
     mData->symbolNames[String(fn, strlen(fn))].insert(loc);
+    if (!path.isSystem())
+        data()->dependencies[file].insert(mSourceInformation.fileId);
 }
