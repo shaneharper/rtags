@@ -12,22 +12,6 @@ include_directories(${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 find_package(V8)
 find_package(YAJL)
 
-find_package(PkgConfig)
-
-pkg_check_modules(GAMIN gamin)
-if (GAMIN_FOUND EQUAL 1)
-  set(HAVE_FAM 1)
-  add_definitions(${GAMIN_CFLAGS})
-endif ()
-
-pkg_check_modules(LIBEVENT libevent libevent_pthreads)
-if (LIBEVENT_FOUND)
-  message("Found libevent: ${LIBEVENT_FOUND}")
-  message("${LIBEVENT_CFLAGS} ${LIBEVENT_LDFLAGS}")
-else ()
-  message(FATAL_ERROR "libevent library not found")
-endif()
-
 add_subdirectory(rct)
 
 include(${CMAKE_CURRENT_LIST_DIR}/rct/compiler.cmake)
@@ -146,9 +130,11 @@ elseif (YAJL_FOUND EQUAL 1)
   add_definitions(-DHAVE_YAJL)
 endif ()
 
-add_library(rtags SHARED ${RDM_SOURCES})
+add_library(rtags ${RDM_SOURCES})
 target_link_libraries(rtags
   rct
+  -L.
+  -lshared
   ${LLVM_LDFLAGS}
   -Wl,--start-group
   ${CLANG_LIBS}
