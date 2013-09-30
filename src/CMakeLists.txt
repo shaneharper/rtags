@@ -131,7 +131,7 @@ elseif (YAJL_FOUND EQUAL 1)
   add_definitions(-DHAVE_YAJL)
 endif ()
 
-add_library(rtags ${RDM_SOURCES})
+add_library(rtags SHARED ${RDM_SOURCES})
 target_link_libraries(rtags
   rct
   -L.
@@ -164,7 +164,6 @@ target_link_libraries(rdm
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
-#add_library(rtagsclang MODULE IndexerJobClang.cpp)
 add_library(rtagsclang SHARED IndexerJobClang.cpp)
 add_dependencies(rtagsclang rct)
 add_dependencies(rtagsclang rdm)
@@ -174,7 +173,8 @@ target_link_libraries(rtagsclang
   -Wl,--start-group
   ${CLANG_LDFLAGS}
   -Wl,--end-group
-  rtags
+  -L.
+  -lrtags
 )
 
 if (V8_FOUND EQUAL 1)
