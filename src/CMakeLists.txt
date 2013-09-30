@@ -162,6 +162,12 @@ target_link_libraries(rdm
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
+if (CYGWIN)
+  set(LRTAGS "-lrtags")
+else ()
+  set(LRTAGS "rtags")
+endif ()
+
 add_library(rtagsclang SHARED IndexerJobClang.cpp)
 add_dependencies(rtagsclang rct)
 add_dependencies(rtagsclang rdm)
@@ -172,7 +178,7 @@ target_link_libraries(rtagsclang
   ${CLANG_LDFLAGS}
   -Wl,--end-group
   -L.
-  -lrtags
+  ${LRTAGS}
 )
 
 if (V8_FOUND EQUAL 1)
