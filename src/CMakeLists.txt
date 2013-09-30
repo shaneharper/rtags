@@ -143,7 +143,6 @@ target_link_libraries(rtags
   -Wl,--end-group
   -lstdc++
   ${CORESERVICES_LIBRARY} ${COREFOUNDATION_LIBRARY}
-  ${LIBEVENT_LDFLAGS}
   ${GAMIN_LDFLAGS}
   ${SYSTEM_LIBS})
 add_dependencies(rtags rct)
