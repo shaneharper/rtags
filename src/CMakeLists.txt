@@ -134,8 +134,7 @@ endif ()
 add_library(rtags SHARED ${RDM_SOURCES})
 target_link_libraries(rtags
   rct
-  -L.
-  -lshared
+  shared
   ${LLVM_LDFLAGS}
   -Wl,--start-group
   ${CLANG_LIBS}
