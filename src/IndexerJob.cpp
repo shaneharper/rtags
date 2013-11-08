@@ -15,7 +15,7 @@ IndexerJob::IndexerJob(IndexType t, const Path &p, const Source &s, const String
 }
 
 IndexerJob::IndexerJob()
-    : state(Pending), port(0), type(Invalid), process(0)
+    : state(Pending), port(0), type(Invalid), process(0), started(0), complete(false)
 {
 }
 
