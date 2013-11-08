@@ -70,7 +70,7 @@ Server::Server()
 
     mUnloadTimer.timeout().connect(std::bind(&Server::onUnload, this));
     mRescheduleTimer.timeout().connect(std::bind(&Server::onReschedule, this));
-    mRescheduleTimer.restart(10000);
+    mRescheduleTimer.restart(mOptions.rescheduleTimeout);
 }
 
 Server::~Server()
@@ -1370,7 +1370,7 @@ void Server::onReschedule()
             ++it;
             continue;
         }
-        if (now - job->started >= 10000) {
+        if (now - job->started >= mOptions.rescheduleTimeout) {
             // this might never happen, reschedule this job
             // don't take it out of the mProcessingJobs list since the result might come back still
             if (debugMulti)

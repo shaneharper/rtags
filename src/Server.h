@@ -77,7 +77,7 @@ public:
         Path socketFile, dataDir;
         unsigned options;
         int processCount, preprocessCount, unloadTimer, rpVisitFileTimeout,
-            rpIndexerMessageTimeout, syncThreshold;
+            rpIndexerMessageTimeout, syncThreshold, rescheduleTimeout;
         List<String> defaultArguments, excludeFilters;
         List<Path> includePaths;
         List<Source::Define> defines;
