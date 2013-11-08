@@ -52,11 +52,12 @@ int main(int argc, char **argv)
     Path project;
     uint8_t type;
     Hash<Path, uint32_t> blockedFiles;
+    uint64_t jobId;
     int visitFileTimeout, indexerMessageTimeout;
     deserializer >> destination >> port >> sourceFile >> source
                  >> preprocessed >> project >> type
                  >> visitFileTimeout >> indexerMessageTimeout
-                 >> blockedFiles;
+                 >> jobId >> blockedFiles;
     if (argc > 1)
         fclose(f);
     f = 0;

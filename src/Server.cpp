@@ -346,6 +346,7 @@ void Server::handleIndexerMessage(const IndexerMessage &message, Connection *con
 {
     std::shared_ptr<IndexData> indexData = message.data();
     // error() << "Got indexer message" << message.project() << Location::path(indexData->fileId);
+    error() << "Got indexData" << indexData->jobId;
     assert(indexData);
     std::shared_ptr<Project> project = mProjects.value(message.project());
     if (!project) {
@@ -1411,7 +1412,7 @@ void Server::startNextJob()
         if (job->startLocal()) {
             assert(job->process);
             if (debugMulti)
-                error() << "started job locally for" << job->sourceFile;
+                error() << "started job locally for" << job->sourceFile << job->id;
             mLocalJobs[job->process] = job;
             mPending.pop_front();
             job->process->finished().connect(std::bind(&Server::onLocalJobFinished, this,
