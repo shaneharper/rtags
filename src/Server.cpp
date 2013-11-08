@@ -70,7 +70,6 @@ Server::Server()
 
     mUnloadTimer.timeout().connect(std::bind(&Server::onUnload, this));
     mRescheduleTimer.timeout().connect(std::bind(&Server::onReschedule, this));
-    mRescheduleTimer.restart(mOptions.rescheduleTimeout);
 }
 
 Server::~Server()
@@ -96,6 +95,7 @@ bool Server::init(const Options &options)
     RTags::initMessages();
 
     mOptions = options;
+    mRescheduleTimer.restart(mOptions.rescheduleTimeout);
     if (options.options & NoBuiltinIncludes) {
         mOptions.defaultArguments.append("-nobuiltininc");
         mOptions.defaultArguments.append("-nostdinc++");
