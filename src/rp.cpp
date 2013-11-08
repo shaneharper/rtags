@@ -103,6 +103,7 @@ int main(int argc, char **argv)
     indexer.setBlockedFiles(std::move(blockedFiles));
     indexer.setVisitFileTimeout(visitFileTimeout);
     indexer.setIndexerMessageTimeout(indexerMessageTimeout);
+    indexer.setJobId(jobId);
 
     if (!indexer.index(static_cast<IndexerJob::IndexType>(type), source, preprocessed, project)) {
         fprintf(stderr, "Failed to index %s\n", sourceFile.constData());
