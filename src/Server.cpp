@@ -69,6 +69,8 @@ Server::Server()
     sInstance = this;
 
     mUnloadTimer.timeout().connect(std::bind(&Server::onUnload, this));
+    mRescheduleTimer.timeout().connect(std::bind(&Server::onReschedule, this));
+    mRescheduleTimer.restart(10000);
 }
 
 Server::~Server()
@@ -342,12 +344,24 @@ void Server::handleCreateOutputMessage(const CreateOutputMessage &message, Conne
     new LogObject(conn, message.level());
 }
 
+static const bool debugMulti = getenv("RDM_DEBUG_MULTI");
+
 void Server::handleIndexerMessage(const IndexerMessage &message, Connection *conn)
 {
     std::shared_ptr<IndexData> indexData = message.data();
     // error() << "Got indexer message" << message.project() << Location::path(indexData->fileId);
-    error() << "Got indexData" << indexData->jobId;
     assert(indexData);
+    std::map<uint64_t, std::shared_ptr<IndexerJob> >::iterator it = mProcessingJobs.find(indexData->jobId);
+    if (debugMulti)
+        error() << "got indexer message for job" << Location::path(indexData->fileId) << indexData->jobId;
+    if (it == mProcessingJobs.end()) {
+        // job already processed
+        if (debugMulti)
+            error() << "already got a response for" << indexData->jobId;
+        return;
+    }
+    it->second->complete = true;
+    mProcessingJobs.erase(it);
     std::shared_ptr<Project> project = mProjects.value(message.project());
     if (!project) {
         error() << "Can't find project root for this IndexerMessage" << message.project() << Location::path(indexData->fileId);
@@ -1225,8 +1239,6 @@ void Server::suspendFile(const QueryMessage &query, Connection *conn)
     conn->finish();
 }
 
-static const bool debugMulti = getenv("RDM_DEBUG_MULTI");
-
 void Server::handleJobRequestMessage(const JobRequestMessage &message, Connection *conn)
 {
     if (debugMulti)
@@ -1236,10 +1248,18 @@ void Server::handleJobRequestMessage(const JobRequestMessage &message, Connectio
     while (it != mPending.end()) {
         std::shared_ptr<IndexerJob>& job = *it;
         if (job->type != IndexerJob::Remote) {
+            if (job->complete) {
+                if (debugMulti)
+                    error() << "wanted to send a remote job but job was already complete" << job->sourceFile << job->id;
+                it = mPending.erase(it);
+                continue;
+            }
             if (debugMulti)
                 error() << "sending job for" << job->sourceFile;
+            if (!job->started)
+                job->started = Rct::monoMs();
+            mProcessingJobs[job->id] = job;
             conn->send(JobResponseMessage(job, mOptions.tcpPort));
-            mRemoteJobs.append(job);
             it = mPending.erase(it);
             if (!--cnt)
                 break;
@@ -1338,6 +1358,30 @@ void Server::onUnload()
     }
 }
 
+void Server::onReschedule()
+{
+    const uint64_t now = Rct::monoMs();
+    auto it = mProcessingJobs.begin();
+    while (it != mProcessingJobs.end()) {
+        const std::shared_ptr<IndexerJob>& job = it->second;
+        assert(!job->complete);
+        if (!job->started) {
+            // local job, no need to reschedule
+            ++it;
+            continue;
+        }
+        if (now - job->started >= 10000) {
+            // this might never happen, reschedule this job
+            // don't take it out of the mProcessingJobs list since the result might come back still
+            if (debugMulti)
+                error() << "rescheduling job" << job->sourceFile << job->id;
+            mPending.push_back(job);
+            startNextJob();
+        }
+        ++it;
+    }
+}
+
 void Server::onMulticastReadyRead(SocketClient::SharedPtr &socket,
                                   const std::string &ip,
                                   uint16_t port,
@@ -1409,7 +1453,16 @@ void Server::startNextJob()
     while (!mPending.isEmpty() && mLocalJobs.size() < mOptions.processCount) {
         std::shared_ptr<IndexerJob> job = mPending.first();
         assert(job);
+        if (job->complete) {
+            if (debugMulti)
+                error() << "wanted to start a local job but job was already complete" << job->sourceFile << job->id;
+            mPending.pop_front();
+            continue;
+        }
         if (job->startLocal()) {
+            if (job->type != IndexerJob::Remote) {
+                mProcessingJobs[job->id] = job;
+            }
             assert(job->process);
             if (debugMulti)
                 error() << "started job locally for" << job->sourceFile << job->id;

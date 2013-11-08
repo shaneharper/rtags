@@ -9,7 +9,8 @@ uint64_t IndexerJob::nextId = 0;
 IndexerJob::IndexerJob(IndexType t, const Path &p, const Source &s, const String &cpp)
     : state(Pending), destination(Server::instance()->options().socketFile),
       port(0), type(t), project(p), source(s), preprocessed(cpp),
-      sourceFile(s.sourceFile()), process(0), id(++nextId)
+      sourceFile(s.sourceFile()), process(0), id(++nextId), started(0),
+      complete(false)
 {
 }
 

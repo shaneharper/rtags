@@ -64,6 +64,8 @@ public:
     Process *process;
     Hash<Path, uint32_t> blockedFiles; // only used for remote jobs
     uint64_t id;
+    uint64_t started;
+    bool complete;
 
     static uint64_t nextId;
 };
