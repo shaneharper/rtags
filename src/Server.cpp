@@ -365,12 +365,12 @@ void Server::index(const String &arguments, const Path &pwd, const List<String> 
     if (!shouldIndex(source, project))
         return;
 
-    preprocess(std::move(source), std::move(project), IndexerJob::Makefile);
+    preprocess(std::move(source), std::move(project), IndexerJob::None);
 }
 
-void Server::preprocess(Source &&source, Path &&project, IndexerJob::IndexType type)
+void Server::preprocess(Source &&source, Path &&project, uint32_t flags)
 {
-    std::shared_ptr<PreprocessJob> job(new PreprocessJob(std::move(source), std::move(project), type));
+    std::shared_ptr<PreprocessJob> job(new PreprocessJob(std::move(source), std::move(project), flags));
     mPendingPreprocessJobs.append(job);
     startPreprocessJobs();
 }
@@ -400,8 +400,13 @@ void Server::handleIndexerMessage(const IndexerMessage &message, Connection *con
             error() << "already got a response for" << indexData->jobId;
         return;
     }
-    if (it->second->state == IndexerJob::Running)
-        it->second->state = IndexerJob::Complete;
+    assert(!(it->second.flags & IndexData::FromRemote));
+    assert(it->second.flags & (IndexerJob::Running|IndexerJob::Aborted|IndexerJob::Crashed));
+    if (!(it->second->flags == (IndexerJob::Aborted|IndexerJob::Crashed))) {
+        assert(it->second->flags & IndexerJob::Running);
+        it->second->flags |= IndexerJob::Complete;
+        it->second->flags &= ~IndexerJob::Running;
+    }
     mProcessingJobs.erase(it);
     std::shared_ptr<Project> project = mProjects.value(message.project());
     if (!project) {
@@ -931,7 +936,7 @@ Path Server::findProject(const Path &path, const Path &unresolvedPath, const Lis
     return root;
 }
 
-void Server::index(const Source &source, const std::shared_ptr<Cpp> &cpp, const Path &srcRoot, IndexerJob::IndexType type)
+void Server::index(const Source &source, const std::shared_ptr<Cpp> &cpp, const Path &srcRoot, uint32_t flags)
 {
     std::shared_ptr<Project> project = mProjects.value(srcRoot);
     if (!project) {
@@ -945,7 +950,7 @@ void Server::index(const Source &source, const std::shared_ptr<Cpp> &cpp, const 
         setupCurrentProjectFile(project);
     }
     assert(project);
-    project->index(source, cpp, type);
+    project->index(source, cpp, flags);
     startNextJob();
 }
 
@@ -1341,17 +1346,12 @@ void Server::handleJobRequestMessage(const JobRequestMessage &message, Connectio
     auto it = mPending.begin();
     while (it != mPending.end()) {
         std::shared_ptr<IndexerJob>& job = *it;
-        if (job->type != IndexerJob::Remote) {
-            if (job->state == IndexerJob::Complete) {
-                if (debugMulti)
-                    error() << "wanted to send a remote job but job was already complete" << job->sourceFile << job->id;
-                it = mPending.erase(it);
-                continue;
-            }
+        if (!(job->flags & IndexerJob::FromRemote)) {
+            assert(job->flags & (IndexerJob::Running|IndexerJob::Complete));
             if (debugMulti)
                 error() << "sending job for" << job->sourceFile << conn->client()->peerName();
-            if (!job->started)
-                job->started = Rct::monoMs();
+            job->started = Rct::monoMs();
+            job->flags |= (IndexerJob::Running|IndexerJob::Remote);
             mProcessingJobs[job->id] = job;
             conn->send(JobResponseMessage(job, mOptions.tcpPort));
             it = mPending.erase(it);
@@ -1530,8 +1530,8 @@ void Server::handleMulticastData(const String &ip, uint16_t port,
             log << "Got unexpected header in data from" << ip << *data;
             return;
         }
-        jobs = ntohs(*reinterpret_cast<const uint16_t*>(data + 1));
-        tcpPort = ntohs(*reinterpret_cast<const uint16_t*>(data + 3));
+        jobs = *reinterpret_cast<const uint16_t*>(data + 1);
+        tcpPort = *reinterpret_cast<const uint16_t*>(data + 3);
         if (debugMulti)
             error() << ip << "has" << jobs << "jobs" << "on port" << tcpPort;
         data += 5;
@@ -1582,7 +1582,7 @@ void Server::addJob(const std::shared_ptr<IndexerJob> &job)
 {
     assert(job);
     mPending.push_back(job);
-    if (job->type == IndexerJob::Remote)
+    if (job->flags & IndexerJob::FromRemote)
         ++mRemotePending;
     startNextJob();
 }
@@ -1592,32 +1592,27 @@ void Server::startNextJob()
     while (!mPending.isEmpty() && mLocalJobs.size() < availableJobSlots(Local)) {
         std::shared_ptr<IndexerJob> job = mPending.first();
         assert(job);
-        if (job->state == IndexerJob::Complete) {
-            if (debugMulti)
-                error() << "wanted to start a local job but job was already complete" << job->sourceFile << job->id;
-            mPending.pop_front();
-            continue;
-        }
-        if (job->startLocal()) {
-            if (job->type != IndexerJob::Remote) {
+        assert(!(job->state & IndexerJob::Complete|IndexerJob::Running));
+        if (!(job->flags & IndexerJob::FromRemote) || project(job->project)) {
+            if (!(job->flags & IndexerJob::FromRemote))
                 mProcessingJobs[job->id] = job;
+            if (job->launchProcess()) {
+                if (debugMulti)
+                    error() << "started job locally for" << job->sourceFile << job->id;
+                mLocalJobs[job->process] = std::make_pair(job, Rct::monoMs());
+                job->process->finished().connect(std::bind(&Server::onLocalJobFinished, this,
+                                                           std::placeholders::_1));
+            } else {
+                EventLoop::eventLoop()->callLater(std::bind(&Server::onLocalJobFinished, this, std::placeholders::_1), job->process);
             }
-            assert(job->process);
-            if (debugMulti)
-                error() << "started job locally for" << job->sourceFile << job->id;
-            mLocalJobs[job->process] = std::make_pair(job, Rct::monoMs());
-            mPending.pop_front();
-            job->process->finished().connect(std::bind(&Server::onLocalJobFinished, this,
-                                                       std::placeholders::_1));
-        } else if (job->type != IndexerJob::Remote && !project(job->project)) {
-            mPending.pop_front();
         }
+        mPending.pop_front();
     }
 
     if (mRemotePending >= static_cast<unsigned int>(mPending.size()) || mPending.empty())
         return;
-    const uint16_t count = htons(static_cast<uint16_t>(mPending.size() - mRemotePending));
-    const uint16_t tcpPort = htons(mOptions.tcpPort);
+    const uint16_t count = static_cast<uint16_t>(mPending.size() - mRemotePending);
+    const uint16_t tcpPort = mOptions.tcpPort;
     unsigned char buf[5];
     buf[0] = 'j';
     memcpy(buf + 1, &count, sizeof(count));
@@ -1645,21 +1640,33 @@ void Server::onLocalJobFinished(Process *process)
 {
     auto it = mLocalJobs.find(process);
     assert(it != mLocalJobs.end());
+    std::shared_ptr<IndexerJob> &job = it->second.first;
     if (debugMulti)
-        error() << "job finished" << it->second.first->type << process->errorString() << process->readAllStdErr();
-    if (it->second.first->type == IndexerJob::Remote) {
+        error() << "job finished" << job->flags << process->errorString() << process->readAllStdErr();
+    if (job->flags & IndexerJob::FromRemote) {
         --mRemotePending;
-        error() << "Built remote job" << it->second.first->sourceFile.toTilde() << "for"
-                << it->second.first->destination
+        error() << "Built remote job" << job->sourceFile.toTilde() << "for"
+                << job->destination
                 << "in" << (Rct::monoMs() - it->second.second) << "ms";
     }
-    const bool removed = mProcessingJobs.erase(it->second.first->id);
+    job->flags &= ~IndexerJob::Running;
+    if (!(job->flags & IndexerJob::Aborted) && (process->returnCode() != 0 || !process->errorString().isEmpty())) {
+        job->flags |= IndexerJob::Crashed;
+        std::shared_ptr<Project> proj = project(job->project);
+        if (proj && proj->state() == Project::Loaded) {
+            std::shared_ptr<IndexData> data(new IndexData(job->flags));
+            data->key = job->source.key();
+            EventLoop::SharedPtr loop = EventLoop::eventLoop();
+            assert(loop);
+            loop->callLater([proj, data]() { proj->onJobFinished(data); });
+        }
+    }
+    job->process = 0;
+    mProcessingJobs.erase(job->id);
     mLocalJobs.erase(it);
     EventLoop::deleteLater(process);
     startNextJob();
-    if (removed && process->returnCode() != 0) {
-        startPreprocessJobs();
-    }
+    startPreprocessJobs();
 }
 
 void Server::handleMulticastForward(const QueryMessage &message, Connection *conn)

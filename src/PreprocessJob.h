@@ -25,14 +25,14 @@
 class PreprocessJob : public ThreadPool::Job
 {
 public:
-    PreprocessJob(Source &&source, Path &&project, IndexerJob::IndexType type);
+    PreprocessJob(Source &&source, Path &&project, uint32_t indexerJobFlags);
     const Source &source() const { return mSource; }
 protected:
     virtual void run();
 private:
     Source mSource;
     Path mProject;
-    const IndexerJob::IndexType mType;
+    const uint32_t mFlags;
 };
 
 #endif
