@@ -31,3 +31,4 @@ gr
 /bin/.gdb_brestore.txt
 /bin/rp
 /src/libshared.so
+.*.sw?
