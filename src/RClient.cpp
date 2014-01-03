@@ -287,8 +287,8 @@ public:
 class QueryCommand : public RCCommand
 {
 public:
-    QueryCommand(QueryMessage::Type t, const String &q)
-        : type(t), query(q), extraQueryFlags(0)
+    QueryCommand(QueryMessage::Type t, const String &query)
+        : type(t), query(query), extraQueryFlags(0)
     {}
 
     const QueryMessage::Type type;
@@ -318,8 +318,8 @@ public:
 class CompletionCommand : public RCCommand
 {
 public:
-    CompletionCommand(const Path &p, int l, int c)
-        : path(p), line(l), column(c), stream(false), connection(0)
+    CompletionCommand(const Path &p, int line, int column)
+        : path(p), line(line), column(column), stream(false), connection(0)
     {}
     CompletionCommand()
         : line(-1), column(-1), stream(true), connection(0)
@@ -438,8 +438,8 @@ public:
 class CompileCommand : public RCCommand
 {
 public:
-    CompileCommand(const Path &c, const String &a)
-        : cwd(c), args(a)
+    CompileCommand(const Path &c, const String &args)
+        : cwd(c), args(args)
     {}
     const Path cwd;
     const String args;
@@ -467,17 +467,10 @@ RClient::~RClient()
     cleanupLogging();
 }
 
-void RClient::addQuery(QueryMessage::Type t, const String &query)
+void RClient::addQuery(QueryMessage::Type type, const String &query)
 {
-    unsigned int extraQueryFlags = 0;
-    switch (t) {
-    case QueryMessage::FindFile:
-        extraQueryFlags |= QueryMessage::WaitForLoadProject;
-    default:
-        break;
-    }
-    std::shared_ptr<QueryCommand> cmd(new QueryCommand(t, query));
-    cmd->extraQueryFlags = extraQueryFlags;
+    std::shared_ptr<QueryCommand> cmd(new QueryCommand(type, query));
+    cmd->extraQueryFlags = (type == QueryMessage::FindFile) ? QueryMessage::WaitForLoadProject : 0;
     mCommands.append(cmd);
 }
 
@@ -493,13 +486,11 @@ void RClient::addCompile(const Path &cwd, const String &args)
 
 bool RClient::exec()
 {
-    bool ret = true;
     RTags::initMessages();
 
     EventLoop::SharedPtr loop(new EventLoop);
     loop->init(EventLoop::MainEventLoop);
 
-    const int commandCount = mCommands.size();
     Connection connection;
     connection.newMessage().connect(std::bind(&RClient::onNewMessage, this,
                                               std::placeholders::_1, std::placeholders::_2));
@@ -509,6 +500,9 @@ bool RClient::exec()
         error("Can't seem to connect to server");
         return false;
     }
+
+    bool ret = true;
+    const int commandCount = mCommands.size();
     for (int i=0; i<commandCount; ++i) {
         const std::shared_ptr<RCCommand> &cmd = mCommands.at(i);
         debug() << "running command " << cmd->description();
@@ -1061,7 +1055,7 @@ void RClient::onNewMessage(const Message *message, Connection *)
     if (message->messageId() == ResponseMessage::MessageId) {
         const String response = static_cast<const ResponseMessage*>(message)->data();
         if (!response.isEmpty()) {
-            fprintf(stdout, "%s\n", response.constData());
+            printf("%s\n", response.constData());
             fflush(stdout);
         }
     } else {
