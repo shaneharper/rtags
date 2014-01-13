@@ -41,11 +41,12 @@ static void sigSegvHandler(int signal)
     _exit(1);
 }
 
-static Path socketFile;
-
 static void sigIntHandler(int)
 {
-    unlink(socketFile.constData());
+    if (const Server* pServer = Server::instance())
+    {
+        unlink(pServer->options().socketFile.constData());
+    }
     _exit(1);
 }
 
@@ -405,11 +406,11 @@ int main(int argc, char** argv)
     EventLoop::SharedPtr loop(new EventLoop);
     loop->init(EventLoop::MainEventLoop);
 
-    std::shared_ptr<Server> server(new Server);
-    ::socketFile = serverOpts.socketFile;
     if (!serverOpts.dataDir.endsWith('/'))
         serverOpts.dataDir.append('/');
-    if (!server->init(serverOpts)) {
+
+    Server server;
+    if (!server.init(serverOpts)) {
         cleanupLogging();
         return 1;
     }
