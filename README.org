@@ -39,8 +39,8 @@ $ rc --follow-location Job.cpp,400
 #+END_SRC
 
 We maintain a set of elisp bindings so you don't acually have to call
-this yourself but we feel that this architecture allows us to add
-bindings to other editors (like vim) at a later point.
+this yourself. A Vim interface also exists
+(https://github.com/shaneharper/vim-rtags).
 
 rc has a vast number of commands and options and we intend to write a
 man page at some point. Most users will have limited interest in ever
