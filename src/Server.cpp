@@ -1497,9 +1497,7 @@ void Server::handleCompletionStream(const CompletionMessage &message, Connection
 void Server::restoreFileIds()
 {
     const Path p = mOptions.dataDir + "fileids";
-    bool clear = true;
-    FILE *f = fopen(p.constData(), "r");
-    if (f) {
+    if (FILE *f = fopen(p.constData(), "r")) {
         Hash<Path, uint32_t> pathsToIds;
         Deserializer in(f);
         int version;
@@ -1509,18 +1507,18 @@ void Server::restoreFileIds()
             in >> size;
             if (size != Rct::fileSize(f)) {
                 error("Refusing to load corrupted file %s", p.constData());
+                clearProjects();
             } else {
                 in >> pathsToIds;
-                clear = false;
                 Location::init(pathsToIds);
             }
-            fclose(f);
         } else {
             error() << p << "has wrong format. Got" << version << "expected" << Server::DatabaseVersion << ", can't restore anything";
+            clearProjects();
         }
+        fclose(f);
     }
-    if (clear)
-        clearProjects();
+    else { clearProjects(); }
 }
 
 bool Server::saveFileIds() const
