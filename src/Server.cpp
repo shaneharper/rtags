@@ -55,15 +55,14 @@ along with RTags.  If not, see <http://www.gnu.org/licenses/>. */
 #include <stdio.h>
 
 Server *Server::sInstance = 0;
-Server::Server()
-    : mVerbose(false), mJobId(0), mIndexerThreadPool(0), mQueryThreadPool(0), mCurrentFileId(0)
+Server::Server(const Options &options)
+    : mOptions(options), mVerbose(false), mJobId(0), mIndexerThreadPool(0), mQueryThreadPool(0), mCurrentFileId(0), mIndex(clang_createIndex(0, 1))
 {
     assert(!sInstance);
     sInstance = this;
 
     mUnloadTimer.timeout().connect(std::bind(&Server::onUnload, this));
     mClearCompletionCacheTimer.timeout().connect(std::bind(&Server::clearCompletionCache, this));
-    mIndex = clang_createIndex(0, 1);
 }
 
 Server::~Server()
@@ -92,7 +91,7 @@ void Server::clear()
     mProjects.clear();
 }
 
-bool Server::init(const Options &options)
+bool Server::init()
 {
     {
         Path dir(RTAGS_BIN);
@@ -109,11 +108,10 @@ bool Server::init(const Options &options)
     }
     RTags::initMessages();
 
-    mIndexerThreadPool = new ThreadPool(options.threadCount);
+    mIndexerThreadPool = new ThreadPool(mOptions.threadCount);
     mQueryThreadPool = new ThreadPool(2);
 
-    mOptions = options;
-    if (options.options & NoBuiltinIncludes) {
+    if (mOptions.options & NoBuiltinIncludes) {
         mOptions.defaultArguments.append("-nobuiltininc");
         mOptions.defaultArguments.append("-nostdinc++");
     } else {
@@ -122,11 +120,11 @@ bool Server::init(const Options &options)
         mOptions.defaultArguments.append(clangPath);
     }
 
-    if (options.options & UnlimitedErrors)
+    if (mOptions.options & UnlimitedErrors)
         mOptions.defaultArguments.append("-ferror-limit=0");
-    if (options.options & Wall)
+    if (mOptions.options & Wall)
         mOptions.defaultArguments.append("-Wall");
-    if (options.options & SpellChecking)
+    if (mOptions.options & SpellChecking)
         mOptions.defaultArguments << "-fspell-checking";
     error() << "using args:" << String::join(mOptions.defaultArguments, " ");
 

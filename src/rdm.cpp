@@ -410,8 +410,8 @@ int main(int argc, char** argv)
     if (!serverOpts.dataDir.endsWith('/'))
         serverOpts.dataDir.append('/');
 
-    Server server;
-    if (!server.init(serverOpts)) {
+    Server server(serverOpts);
+    if (!server.init()) {
         cleanupLogging();
         return 1;
     }

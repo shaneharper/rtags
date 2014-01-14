@@ -51,7 +51,19 @@ class Server
 public:
     enum { DatabaseVersion = 28 };
 
-    Server();
+    struct Options {
+        Options()
+            : options(0), threadCount(0), completionCacheSize(0), unloadTimer(0),
+              clearCompletionCacheInterval(0), syncThreshold(0)
+        {}
+        Path socketFile, dataDir;
+        unsigned options;
+        int threadCount, completionCacheSize, unloadTimer, clearCompletionCacheInterval, syncThreshold;
+        List<String> defaultArguments, excludeFilters;
+        Set<Path> ignoredCompilers;
+    };
+
+    Server(const Options&);
     ~Server();
     static Server *instance() { return sInstance; }
     enum Option {
@@ -73,18 +85,7 @@ public:
     ThreadPool *threadPool() const { return mIndexerThreadPool; }
     void startQueryJob(const std::shared_ptr<Job> &job);
     void startIndexerJob(const std::shared_ptr<ThreadPool::Job> &job);
-    struct Options {
-        Options()
-            : options(0), threadCount(0), completionCacheSize(0), unloadTimer(0),
-              clearCompletionCacheInterval(0), syncThreshold(0)
-        {}
-        Path socketFile, dataDir;
-        unsigned options;
-        int threadCount, completionCacheSize, unloadTimer, clearCompletionCacheInterval, syncThreshold;
-        List<String> defaultArguments, excludeFilters;
-        Set<Path> ignoredCompilers;
-    };
-    bool init(const Options &options);
+    bool init();
     const Options &options() const { return mOptions; }
     uint32_t currentFileId() const { std::lock_guard<std::mutex> lock(mMutex); return mCurrentFileId; }
     bool saveFileIds() const;
