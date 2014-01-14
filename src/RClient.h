@@ -31,7 +31,7 @@ public:
     RClient();
     ~RClient();
     bool exec();
-    bool parse(int &argc, char **argv);
+    bool parse(int argc, char **argv);
 
     int max() const { return mMax; }
     int logLevel() const { return mLogLevel; }

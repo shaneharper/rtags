@@ -515,7 +515,7 @@ bool RClient::exec()
     return ret;
 }
 
-bool RClient::parse(int &argc, char **argv)
+bool RClient::parse(int argc, char **argv)
 {
     Rct::findExecutablePath(*argv);
     mSocketFile = Path::home() + ".rdm";

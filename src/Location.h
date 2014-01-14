@@ -202,19 +202,12 @@ public:
             return String();
 
         char *endPtr;
-        uint32_t offset = strtoull(key.constData() + lastComma + 1, &endPtr, 10);
+        const uint32_t offset = strtoull(key.constData() + lastComma + 1, &endPtr, 10);
         if (*endPtr != '\0')
             return String();
-        Path path = Path::resolved(key.left(lastComma));
-        String out;
-        {
-            out = path;
-            char buf[4];
-            memcpy(buf, &offset, sizeof(buf));
-            out += String(buf, 4);
-        }
 
-        return out;
+        return Path::resolved(key.left(lastComma))
+            + String(reinterpret_cast<const char*>(&offset), sizeof(offset));
     }
 
     static Location fromPathAndOffset(const String &pathAndOffset)
@@ -267,13 +260,13 @@ template <> inline int fixedSize(const Location &)
 
 template <> inline Serializer &operator<<(Serializer &s, const Location &t)
 {
-    s.write(reinterpret_cast<const char*>(&t.mData), sizeof(uint64_t));
+    s.write(reinterpret_cast<const char*>(&t.mData), sizeof(t.mData));
     return s;
 }
 
 template <> inline Deserializer &operator>>(Deserializer &s, Location &t)
 {
-    s.read(reinterpret_cast<char*>(&t), sizeof(uint64_t));
+    s.read(reinterpret_cast<char*>(&t.mData), sizeof(t.mData));
     return s;
 }
 

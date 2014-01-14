@@ -232,10 +232,7 @@ int Server::reloadProjects()
 
 void Server::onNewConnection()
 {
-    while (true) {
-        SocketClient::SharedPtr client = mServer->nextConnection();
-        if (!client)
-            break;
+    while (SocketClient::SharedPtr client = mServer->nextConnection()) {
         Connection *conn = new Connection(client);
         conn->newMessage().connect(std::bind(&Server::onNewMessage, this, std::placeholders::_1, std::placeholders::_2));
         conn->disconnected().connect(std::bind(&Server::onConnectionDisconnected, this, std::placeholders::_1));

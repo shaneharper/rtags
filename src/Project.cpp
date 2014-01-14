@@ -281,8 +281,7 @@ bool Project::match(const Match &p, bool *indexed) const
             ret = true;
         }
     }
-    if (indexed)
-        *indexed = false;
+    *indexed = false;
     return ret;
 }
 
