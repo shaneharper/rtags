@@ -41,7 +41,7 @@ static void sigSegvHandler(int signal)
     _exit(1);
 }
 
-static void sigIntHandler(int)
+static void cleanupAndExit(int)
 {
     if (const Server* pServer = Server::instance())
     {
@@ -394,7 +394,8 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    signal(SIGINT, sigIntHandler);
+    signal(SIGINT, cleanupAndExit);
+    signal(SIGTERM, cleanupAndExit);
 
     if (!initLogging(argv[0], LogStderr, logLevel, logFile, logFlags)) {
         fprintf(stderr, "Can't initialize logging with %s %d %d %s 0x%0x\n",
