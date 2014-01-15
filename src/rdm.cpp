@@ -24,6 +24,7 @@ along with RTags.  If not, see <http://www.gnu.org/licenses/>. */
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h> // daemon
 #include "ScanJob.h"
 #ifdef HAVE_BACKTRACE
 #include <execinfo.h>
@@ -48,6 +49,14 @@ static void cleanupAndExit(int)
         unlink(pServer->options().socketFile.constData());
     }
     _exit(1);
+}
+
+static void becomeADaemon() // Note: Not possible after we are multithreaded.
+{
+    if (::daemon(/*nochdir*/ 0, /*noclose*/ 1 /*XXX ? */))
+    {
+        error() << "daemon() failed with errno = " << strerror(errno);
+    }
 }
 
 #define EXCLUDEFILTER_DEFAULT "*/CMakeFiles/*;*/cmake*/Modules/*;*/conftest.c*;/tmp/*"
@@ -403,6 +412,8 @@ int main(int argc, char** argv)
         return 1;
     }
     warning("Running with %d jobs", serverOpts.threadCount);
+
+    becomeADaemon(); // (stderr not closed.)
 
     EventLoop::SharedPtr loop(new EventLoop);
     loop->init(EventLoop::MainEventLoop);
