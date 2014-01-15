@@ -34,7 +34,6 @@ if (CMAKE_BUILD_TYPE MATCHES "Debug")
   add_definitions(-DRTAGS_DEBUG)
 endif ()
 
-add_definitions(-Wall)
 add_definitions("-DCLANG_INCLUDEPATH=\"${CLANG_SYSTEM_INCLUDE}\"")
 add_definitions("-DCLANG_VERSION_MAJOR=${CLANG_VERSION_MAJOR}")
 add_definitions("-DCLANG_VERSION_MINOR=${CLANG_VERSION_MINOR}")
