@@ -20,10 +20,13 @@ along with RTags.  If not, see <http://www.gnu.org/licenses/>. */
 #include <rct/Rct.h>
 #include <rct/Thread.h>
 #include <rct/ThreadPool.h>
+#include <fstream>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
+#include <streambuf>
 #include <unistd.h> // daemon
 #include "ScanJob.h"
 #ifdef HAVE_BACKTRACE
@@ -57,6 +60,13 @@ static void becomeADaemon() // Note: Not possible after we are multithreaded.
     {
         error() << "daemon() failed with errno = " << strerror(errno);
     }
+}
+
+static std::string fileContents(const String &filename)
+{
+    std::ifstream ifs(filename.constData());
+    return {std::istreambuf_iterator<char>(ifs),
+            std::istreambuf_iterator<char>()};
 }
 
 #define EXCLUDEFILTER_DEFAULT "*/CMakeFiles/*;*/cmake*/Modules/*;*/conftest.c*;/tmp/*"
@@ -181,10 +191,10 @@ int main(int argc, char** argv)
     }
 
 
-    List<String> argCopy;
+    List<String> rcArgs; // Note: argList may point to C strings managed by this object
     List<char*> argList;
     {
-        bool norc = false;
+        bool readRcFile = true;
         Path rcfile = Path::home() + ".rdmrc";
         opterr = 0;
         while (true) {
@@ -193,35 +203,24 @@ int main(int argc, char** argv)
                 break;
             switch (c) {
             case 'N':
-                norc = true;
+                readRcFile = false;
                 break;
             case 'c':
                 rcfile = optarg;
                 break;
-            default:
-                break;
             }
         }
+
         opterr = 1;
         argList.append(argv[0]);
-        if (!norc) {
-            char *rc;
-            int size = Path("/etc/rdmrc").readAll(rc);
-            if (rc) {
-                argCopy = String(rc, size).split('\n');
-                delete[] rc;
-            }
+        if (readRcFile) {
+            rcArgs = String(fileContents("/etc/rdmrc")).split('\n');
             if (!rcfile.isEmpty()) {
-                size = rcfile.readAll(rc);
-                if (rc) {
-                    List<String> split = String(rc, size).split('\n');
-                    argCopy.append(split);
-                    delete[] rc;
-                }
+                rcArgs.append(String(fileContents(rcfile)).split('\n'));
             }
-            const int s = argCopy.size();
+            const int s = rcArgs.size();
             for (int i=0; i<s; ++i) {
-                String &arg = argCopy.at(i);
+                String &arg = rcArgs.at(i);
                 if (!arg.isEmpty() && !arg.startsWith('#') && !arg.startsWith(' '))
                     argList.append(arg.data());
             }
